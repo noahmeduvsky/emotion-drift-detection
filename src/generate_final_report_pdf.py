@@ -649,7 +649,7 @@ def create_pdf_report():
     
     2. Processed datasets and code are available in my project repository. The complete source code, 
     preprocessing scripts, model training code, evaluation utilities, and visualization tools are 
-    available at: https://github.com/[YOUR_USERNAME]/emotion-drift-detection<br/><br/>
+    available at: https://github.com/noahmeduvsky/emotion-drift-detection<br/><br/>
     
     The DailyDialog dataset is made available for research purposes. Processed data files, trained 
     model checkpoints, and all experimental results can be accessed through the repository. All code 

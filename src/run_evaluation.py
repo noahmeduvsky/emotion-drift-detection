@@ -1,5 +1,5 @@
 """
-Script to evaluate a trained model.
+Script to evaluate a trained model. Just loads a checkpoint and runs evaluation.
 """
 
 import sys

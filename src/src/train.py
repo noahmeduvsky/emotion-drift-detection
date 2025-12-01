@@ -1,6 +1,6 @@
 """
-Training script for emotion drift detection models.
-Supports both LSTM and Transformer-based models.
+Training script for the emotion drift model.
+I support both LSTM and Transformer models, but mostly use Transformer (BERT).
 """
 
 import torch
@@ -41,7 +41,8 @@ except ImportError:
 
 class Trainer:
     """
-    Trainer class for emotion drift detection models.
+    Trainer class that handles all the training logic.
+    I put everything here so it's easier to manage.
     """
     
     def __init__(self,
@@ -56,19 +57,7 @@ class Trainer:
                  focal_gamma: float = 2.0,
                  save_dir: str = "models/checkpoints"):
         """
-        Initialize trainer.
-        
-        Args:
-            model: PyTorch model
-            train_loader: Training DataLoader
-            val_loader: Validation DataLoader
-            device: Device to run training on
-            learning_rate: Learning rate
-            weight_decay: Weight decay for optimizer
-            class_weights: Optional class weights for imbalanced data
-            loss_type: Loss function type ('cross_entropy' or 'focal')
-            focal_gamma: Gamma parameter for focal loss
-            save_dir: Directory to save checkpoints
+        Sets up the trainer with model, data loaders, and all the training stuff.
         """
         self.model = model.to(device)
         self.train_loader = train_loader
@@ -123,10 +112,7 @@ class Trainer:
     
     def train_epoch(self) -> Tuple[float, float]:
         """
-        Train for one epoch.
-        
-        Returns:
-            Tuple of (average_loss, f1_score)
+        Trains for one epoch. Returns the loss and f1 score.
         """
         self.model.train()
         total_loss = 0.0
@@ -145,11 +131,10 @@ class Trainer:
             # Forward pass
             self.optimizer.zero_grad()
             
-            # Handle different model types
+            # handle transformer models differently
             if hasattr(self.model.base_model, 'transformer'):
-                # Transformer model
-                # Input shape: [batch_size, seq_len, turn_len]
-                # Need to process each turn separately
+                # for transformer models, need to reshape the input
+                # shape is [batch_size, seq_len, turn_len] and we need to flatten it
                 batch_size, seq_len, turn_len = input_ids.shape
                 
                 # Reshape to [batch*seq, turn_len] for BERT
@@ -165,9 +150,8 @@ class Trainer:
                 # Reshape back to [batch, seq, num_classes]
                 logits = logits.view(batch_size, seq_len, num_classes)
             else:
-                # LSTM model - need embeddings first
-                # For LSTM, we'd need to extract embeddings from BERT first
-                # Simplified version for LSTM models
+                # LSTM would need embeddings first, but I never got around to implementing this
+                # maybe later if I have time
                 raise NotImplementedError("LSTM training requires pre-computed embeddings")
             
             # Reshape for loss computation
@@ -207,7 +191,7 @@ class Trainer:
             all_predictions.extend(pred_np.tolist() if isinstance(pred_np, np.ndarray) else [pred_np])
             all_labels.extend(label_np.tolist() if isinstance(label_np, np.ndarray) else [label_np])
             
-            # Clear memory to avoid OOM
+            # clear memory to avoid running out of GPU memory
             del input_ids, attention_mask, labels, padding_mask, logits, predictions, loss
             if hasattr(self.model.base_model, 'transformer'):
                 # Also delete flattened tensors if they exist
@@ -230,10 +214,7 @@ class Trainer:
     
     def validate(self) -> Tuple[float, Dict]:
         """
-        Validate model on validation set.
-        
-        Returns:
-            Tuple of (average_loss, metrics_dict)
+        Validates the model on the validation set. Returns loss and metrics.
         """
         self.model.eval()
         total_loss = 0.0
@@ -291,11 +272,7 @@ class Trainer:
     
     def save_checkpoint(self, epoch: int, is_best: bool = False):
         """
-        Save model checkpoint.
-        
-        Args:
-            epoch: Current epoch number
-            is_best: Whether this is the best model so far
+        Saves a checkpoint. Saves both latest and best model.
         """
         checkpoint = {
             'epoch': epoch,
@@ -318,10 +295,7 @@ class Trainer:
     
     def load_checkpoint(self, checkpoint_path: str):
         """
-        Load model checkpoint.
-        
-        Args:
-            checkpoint_path: Path to checkpoint file
+        Loads a checkpoint. Useful for resuming training.
         """
         checkpoint = torch.load(checkpoint_path, map_location=self.device)
         self.model.load_state_dict(checkpoint['model_state_dict'])
@@ -333,11 +307,7 @@ class Trainer:
     
     def train(self, num_epochs: int, early_stopping_patience: int = 10):
         """
-        Main training loop.
-        
-        Args:
-            num_epochs: Number of training epochs
-            early_stopping_patience: Patience for early stopping
+        Main training loop. Runs for num_epochs or until early stopping kicks in.
         """
         print(f"Starting training for {num_epochs} epochs...")
         print(f"Device: {self.device}")

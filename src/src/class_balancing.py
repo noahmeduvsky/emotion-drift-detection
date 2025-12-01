@@ -1,6 +1,5 @@
 """
-Class balancing utilities for handling imbalanced datasets.
-Includes weighted loss, focal loss, and class weight computation.
+Class balancing utilities. Handles imbalanced datasets with weighted loss and focal loss.
 """
 
 import torch
@@ -13,24 +12,15 @@ from sklearn.utils.class_weight import compute_class_weight
 
 class FocalLoss(nn.Module):
     """
-    Focal Loss for addressing class imbalance.
-    
-    Focal loss focuses learning on hard examples and down-weights easy examples.
-    Particularly effective for imbalanced datasets.
-    
-    Reference: Lin et al. (2017) "Focal Loss for Dense Object Detection"
+    Focal Loss for imbalanced datasets. Focuses on hard examples and down-weights easy ones.
+    I read about this in a paper and thought it might help with my imbalanced emotion classes.
     """
     
     def __init__(self, alpha: Optional[torch.Tensor] = None, 
                  gamma: float = 2.0, 
                  reduction: str = 'mean'):
         """
-        Initialize Focal Loss.
-        
-        Args:
-            alpha: Weighting factor for each class (optional)
-            gamma: Focusing parameter (higher gamma = more focus on hard examples)
-            reduction: 'none', 'mean', or 'sum'
+        Sets up focal loss. gamma controls how much to focus on hard examples.
         """
         super(FocalLoss, self).__init__()
         self.alpha = alpha
@@ -39,14 +29,7 @@ class FocalLoss(nn.Module):
     
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         """
-        Compute focal loss.
-        
-        Args:
-            inputs: Logits tensor of shape (N, C) where N is batch size and C is number of classes
-            targets: Target tensor of shape (N,) containing class indices
-        
-        Returns:
-            Focal loss value
+        Computes focal loss. The formula is a bit complex but it works well for imbalanced data.
         """
         ce_loss = F.cross_entropy(inputs, targets, reduction='none', weight=self.alpha)
         pt = torch.exp(-ce_loss)
@@ -64,15 +47,7 @@ def compute_class_weights_from_labels(labels: List[int] or np.ndarray,
                                       num_classes: Optional[int] = None,
                                       method: str = 'balanced') -> torch.Tensor:
     """
-    Compute class weights from label distribution.
-    
-    Args:
-        labels: List or array of class labels
-        num_classes: Number of classes (auto-detect if None)
-        method: 'balanced' for inverse frequency, 'inverse' for simple inverse frequency
-    
-    Returns:
-        Tensor of class weights
+    Computes class weights from labels. Helps balance the loss when classes are imbalanced.
     """
     labels = np.array(labels)
     
@@ -80,14 +55,14 @@ def compute_class_weights_from_labels(labels: List[int] or np.ndarray,
         num_classes = len(np.unique(labels))
     
     if method == 'balanced':
-        # Use sklearn's balanced class weights (inverse frequency weighting)
+        # use sklearn's balanced weights (inverse frequency)
         weights = compute_class_weight(
             'balanced',
             classes=np.arange(num_classes),
             y=labels
         )
     elif method == 'inverse':
-        # Simple inverse frequency
+        # simple inverse frequency method
         unique, counts = np.unique(labels, return_counts=True)
         total = len(labels)
         weights = np.zeros(num_classes)
@@ -103,22 +78,14 @@ def compute_class_weights_from_emotion_arrays(emotions: List[np.ndarray],
                                                num_classes: int,
                                                method: str = 'balanced') -> torch.Tensor:
     """
-    Compute class weights from emotion label arrays.
-    
-    Args:
-        emotions: List of emotion arrays (one per dialogue)
-        num_classes: Number of emotion classes
-        method: Weighting method
-    
-    Returns:
-        Tensor of class weights
+    Computes class weights from emotion arrays. Flattens everything first.
     """
-    # Flatten all emotion labels
+    # flatten all the emotion labels
     all_labels = []
     for emotion_array in emotions:
         all_labels.extend(emotion_array.flatten().tolist())
     
-    # Remove padding (-1) if present
+    # remove padding values
     all_labels = [l for l in all_labels if l >= 0]
     
     return compute_class_weights_from_labels(all_labels, num_classes, method)
@@ -161,16 +128,7 @@ def create_weighted_loss_function(class_weights: Optional[torch.Tensor] = None,
                                   focal_gamma: float = 2.0,
                                   device: Optional[torch.device] = None) -> nn.Module:
     """
-    Create loss function with class balancing.
-    
-    Args:
-        class_weights: Optional class weights tensor
-        loss_type: 'cross_entropy' or 'focal'
-        focal_gamma: Gamma parameter for focal loss
-        device: Device to move weights to
-    
-    Returns:
-        Loss function module
+    Creates a loss function with class balancing. Can use cross entropy or focal loss.
     """
     if class_weights is not None and device is not None:
         class_weights = class_weights.to(device)

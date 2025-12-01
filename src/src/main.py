@@ -1,5 +1,6 @@
 """
-Main script to orchestrate training, evaluation, and visualization.
+Main script for training and evaluating the emotion drift model.
+I use this to run everything from one place.
 """
 
 import argparse
@@ -7,7 +8,6 @@ import torch
 import numpy as np
 import json
 import os
-from typing import Optional
 
 from .data_loader import load_dailydialog_dataset, combine_datasets, load_local_dataset
 from .preprocessing import EmotionPreprocessor, normalize_emotion_labels
@@ -22,7 +22,6 @@ from .class_balancing import (
     create_weighted_loss_function
 )
 import pandas as pd
-import json
 
 
 def load_and_preprocess_data(dataset_name: str = "dailydialog",
@@ -31,21 +30,11 @@ def load_and_preprocess_data(dataset_name: str = "dailydialog",
                            max_length: int = 128,
                            use_saved: bool = True):
     """
-    Load and preprocess dataset.
-    
-    Args:
-        dataset_name: Name of dataset to load
-        split: Dataset split
-        model_name: Model name for tokenizer
-        max_length: Maximum sequence length
-        use_saved: Whether to use saved processed data if available
-        
-    Returns:
-        Tuple of (dialogues, emotions, metadata, preprocessor)
+    Loads and preprocesses the dataset. 
+    I made it check for saved data first to save time.
     """
-    # Try loading saved processed data first
-    # Prefer real dataset if available
-    # Check multiple possible paths
+    # check for saved data first since preprocessing takes forever
+    # look in a few different places in case the paths are weird
     possible_data_files = [
         "data/processed_data_real.csv",
         "src/data/processed_data_real.csv",
@@ -139,7 +128,7 @@ def load_and_preprocess_data(dataset_name: str = "dailydialog",
 
 def train_pipeline(args):
     """
-    Run training pipeline.
+    Runs the training pipeline. This is where the magic happens.
     """
     print("="*60)
     print("TRAINING PIPELINE")
@@ -277,7 +266,7 @@ def train_pipeline(args):
 
 def evaluate_pipeline(args):
     """
-    Run evaluation pipeline on a trained model.
+    Evaluates a trained model. Just loads the checkpoint and runs it on test data.
     """
     print("="*60)
     print("EVALUATION PIPELINE")

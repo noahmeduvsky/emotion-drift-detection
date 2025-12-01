@@ -1,6 +1,5 @@
 """
-Script to prepare and preprocess dataset for training.
-Handles dataset loading, preprocessing, and saving processed data.
+Script to prepare and preprocess the dataset. Loads data, cleans it, and saves it for training.
 """
 
 import sys
@@ -15,14 +14,14 @@ from preprocessing import EmotionPreprocessor, normalize_emotion_labels
 
 def create_synthetic_dataset(num_dialogues=100, max_turns=8):
     """
-    Create a synthetic dataset for training when real dataset is unavailable.
-    Generates realistic dialogue patterns with emotion transitions.
+    Creates a synthetic dataset when the real one isn't available. 
+    Generates dialogues with emotion transitions for testing.
     """
     print("Creating synthetic dataset...")
     
     emotions = ['joy', 'anger', 'sadness', 'neutral', 'fear', 'surprise', 'disgust']
     
-    # Templates for different emotion contexts
+    # templates for generating text based on emotions
     templates = {
         'joy': [
             "That's great news!",
@@ -73,17 +72,16 @@ def create_synthetic_dataset(num_dialogues=100, max_turns=8):
     for dialogue_id in range(num_dialogues):
         num_turns = np.random.randint(3, max_turns + 1)
         
-        # Create emotion trajectory (start neutral, may drift)
+        # create emotion trajectory (starts neutral, may drift)
         emotion_sequence = ['neutral']
         for i in range(1, num_turns):
             prev_emotion = emotion_sequence[-1]
             
-            # Probability of emotion change
+            # 40% chance of emotion change (drift)
             if np.random.random() < 0.4:
-                # Change emotion (drift)
                 new_emotion = np.random.choice(emotions)
             else:
-                # Stay same or similar
+                # stay the same
                 new_emotion = prev_emotion
             
             emotion_sequence.append(new_emotion)
@@ -92,11 +90,11 @@ def create_synthetic_dataset(num_dialogues=100, max_turns=8):
         for turn_id, emotion in enumerate(emotion_sequence):
             speaker = 'user' if turn_id % 2 == 0 else 'agent'
             
-            # Select template based on emotion
+            # pick a template based on the emotion
             template_list = templates.get(emotion, templates['neutral'])
             text = np.random.choice(template_list)
             
-            # Add some variation
+            # add some variation to make it look more realistic
             if turn_id > 0:
                 text = f"{text} (turn {turn_id + 1})"
             

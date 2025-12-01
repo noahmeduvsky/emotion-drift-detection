@@ -1,6 +1,5 @@
 """
-Data loading utilities for emotion drift detection project.
-Supports EmotionLines, DailyDialog, and MELD datasets.
+Data loading utilities. I support a few different datasets but mostly use DailyDialog.
 """
 
 import pandas as pd
@@ -13,13 +12,7 @@ import numpy as np
 
 def load_dailydialog_from_csv(filepath: str) -> pd.DataFrame:
     """
-    Load DailyDialog dataset from local CSV file.
-    
-    Args:
-        filepath: Path to CSV file (train.csv, test.csv, or validation.csv)
-    
-    Returns:
-        DataFrame with columns: dialogue_id, turn_id, speaker, text, emotion
+    Loads DailyDialog from a CSV file. The CSV format is a bit weird so I had to parse it carefully.
     """
     print(f"Loading DailyDialog from {filepath}...")
     
@@ -28,29 +21,27 @@ def load_dailydialog_from_csv(filepath: str) -> pd.DataFrame:
     data = []
     dialogue_id = 0
     
-    # Emotion mapping from DailyDialog
+    # map emotion numbers to labels
     emotion_map = {0: 'no_emotion', 1: 'anger', 2: 'disgust', 
                   3: 'fear', 4: 'happiness', 5: 'sadness', 6: 'surprise'}
     
     for idx, row in df.iterrows():
-        # Parse dialog string to list
+        # parse the dialog string - it's stored as a string representation of a list
         try:
-            # The dialog is stored as a string representation of a list
             dialog_str = row['dialog']
             if isinstance(dialog_str, str):
-                # Remove outer quotes if present
+                # remove quotes if they're there
                 dialog_str = dialog_str.strip()
                 if dialog_str.startswith('"') and dialog_str.endswith('"'):
                     dialog_str = dialog_str[1:-1]
                 
-                # Use regex to extract all quoted strings (handles multi-line format)
+                # use regex to extract the text (handles weird formatting)
                 import re
-                # Pattern matches: 'text', "text", ''text'', or ""text"" (handles nested quotes)
-                # The DOTALL flag allows . to match newlines
+                # this regex handles different quote styles
                 matches = re.findall(r"(?:''|\"\"|'|\")(.*?)(?:''|\"\"|'|\")", dialog_str, re.DOTALL)
                 dialog_list = [m.strip() for m in matches if m.strip()]
                 
-                # If regex didn't work, try ast.literal_eval as fallback
+                # if regex failed, try parsing as a Python list
                 if not dialog_list:
                     try:
                         dialog_str_clean = dialog_str.replace('\n', ' ').replace('\r', ' ')
@@ -62,41 +53,40 @@ def load_dailydialog_from_csv(filepath: str) -> pd.DataFrame:
             else:
                 dialog_list = dialog_str
             
-            # Parse emotion string to list
+            # parse emotions - format is like "[0 0 0 0 0 0 4 4 4 4]"
             emotion_str = row['emotion']
             if isinstance(emotion_str, str):
-                # Handle format like "[0 0 0 0 0 0 4 4 4 4]"
                 emotion_str = emotion_str.strip()
                 if emotion_str.startswith('[') and emotion_str.endswith(']'):
                     emotion_str = emotion_str[1:-1]
-                # Split by space and convert to int
+                # split and convert to ints
                 emotion_list = [int(x) for x in emotion_str.split() if x.strip()]
             else:
                 emotion_list = emotion_str
             
-            # Ensure dialog and emotion lists have same length
+            # make sure dialog and emotions match up
             min_len = min(len(dialog_list), len(emotion_list))
             dialog_list = dialog_list[:min_len]
             emotion_list = emotion_list[:min_len]
             
-            # Skip if no valid turns
+            # skip if empty
             if min_len == 0:
                 continue
             
-            # Create rows for each turn in this dialogue
+            # create a row for each turn
             for turn_id, (text, emotion_idx) in enumerate(zip(dialog_list, emotion_list)):
-                # Clean text
+                # clean up the text
                 text = str(text).strip()
-                # Remove extra quotes
+                # remove quotes if present
                 if text.startswith("'") and text.endswith("'"):
                     text = text[1:-1]
                 elif text.startswith('"') and text.endswith('"'):
                     text = text[1:-1]
                 
-                # Map emotion index to label
+                # convert emotion number to label
                 emotion_label = emotion_map.get(emotion_idx, 'no_emotion')
                 
-                # Determine speaker (alternating)
+                # alternate between user and agent
                 speaker = 'user' if turn_id % 2 == 0 else 'agent'
                 
                 data.append({
@@ -124,15 +114,9 @@ def load_dailydialog_from_csv(filepath: str) -> pd.DataFrame:
 
 def load_dailydialog_dataset(split: str = "train") -> pd.DataFrame:
     """
-    Load DailyDialog dataset from Hugging Face or local CSV files.
-    
-    Args:
-        split: Dataset split ('train', 'validation', 'test')
-    
-    Returns:
-        DataFrame with columns: dialogue_id, turn_id, speaker, text, emotion
+    Loads DailyDialog dataset. Tries local files first, then Hugging Face.
     """
-    # First, try loading from local CSV files
+    # try local files first
     csv_file = None
     if split == "train":
         csv_file = "train.csv"
@@ -141,7 +125,7 @@ def load_dailydialog_dataset(split: str = "train") -> pd.DataFrame:
     elif split == "test":
         csv_file = "test.csv"
     
-    # Check in project root and src directory
+    # check a few different paths
     possible_paths = [
         csv_file,
         os.path.join("..", csv_file),
@@ -153,20 +137,20 @@ def load_dailydialog_dataset(split: str = "train") -> pd.DataFrame:
         if os.path.exists(path):
             return load_dailydialog_from_csv(path)
     
-    # If local files not found, try Hugging Face
+    # if no local files, try Hugging Face
     try:
-        # Try loading with trust_remote_code for newer dataset versions
+        # try with trust_remote_code first (for newer versions)
         try:
             dataset = load_dataset("daily_dialog", split=split, trust_remote_code=True)
         except:
-            # Fallback to older method
+            # fallback to old method
             dataset = load_dataset("daily_dialog", split=split)
         
         data = []
         dialogue_id = 0
         
         for example in dataset:
-            # Handle different possible field names
+            # handle different field names (dataset format varies)
             dialogues = example.get('dialog', example.get('dialogue', []))
             emotions = example.get('emotions', example.get('emotion', []))
             
@@ -174,7 +158,7 @@ def load_dailydialog_dataset(split: str = "train") -> pd.DataFrame:
                 continue
             
             for turn_id, (text, emotion) in enumerate(zip(dialogues, emotions)):
-                # Map emotion index to label
+                # map emotion number to label
                 emotion_map = {0: 'no_emotion', 1: 'anger', 2: 'disgust', 
                               3: 'fear', 4: 'happiness', 5: 'sadness', 6: 'surprise'}
                 emotion_label = emotion_map.get(emotion, 'no_emotion')

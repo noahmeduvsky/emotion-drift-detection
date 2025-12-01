@@ -1,6 +1,5 @@
 """
-Evaluation utilities for emotion drift detection.
-Computes classification metrics and drift detection metrics.
+Evaluation utilities. Computes metrics for classification and drift detection.
 """
 
 import torch
@@ -21,40 +20,32 @@ def compute_metrics(predictions: np.ndarray,
                    labels: np.ndarray,
                    emotion_classes: Optional[List[str]] = None) -> Dict:
     """
-    Compute classification metrics for emotion prediction.
-    
-    Args:
-        predictions: Array of predicted emotion indices
-        labels: Array of true emotion indices
-        emotion_classes: Optional list of emotion class names
-        
-    Returns:
-        Dictionary with metrics: accuracy, f1_score, precision, recall, per_class_f1
+    Computes classification metrics. Returns accuracy, F1, precision, recall, etc.
     """
-    # Convert to numpy if needed
+    # convert to numpy if needed
     if isinstance(predictions, torch.Tensor):
         predictions = predictions.cpu().numpy()
     if isinstance(labels, torch.Tensor):
         labels = labels.cpu().numpy()
     
-    # Convert to numpy array if list
+    # convert lists to arrays
     if isinstance(predictions, list):
         predictions = np.array(predictions)
     if isinstance(labels, list):
         labels = np.array(labels)
     
-    # Flatten if needed
+    # flatten everything
     predictions = predictions.flatten()
     labels = labels.flatten()
     
-    # Compute metrics
+    # compute the metrics
     accuracy = accuracy_score(labels, predictions)
     f1_macro = f1_score(labels, predictions, average='macro', zero_division=0)
     f1_weighted = f1_score(labels, predictions, average='weighted', zero_division=0)
     precision = precision_score(labels, predictions, average='macro', zero_division=0)
     recall = recall_score(labels, predictions, average='macro', zero_division=0)
     
-    # Per-class F1 scores
+    # get per-class F1 scores
     per_class_f1 = f1_score(labels, predictions, average=None, zero_division=0)
     
     metrics = {
@@ -66,7 +57,7 @@ def compute_metrics(predictions: np.ndarray,
         'per_class_f1': per_class_f1.tolist()
     }
     
-    # Add per-class metrics if class names provided
+    # add per-class metrics if we have class names
     if emotion_classes is not None and len(emotion_classes) == len(per_class_f1):
         for i, emotion in enumerate(emotion_classes):
             metrics[f'f1_{emotion}'] = float(per_class_f1[i])
@@ -103,16 +94,7 @@ def compute_confusion_matrix(predictions: np.ndarray,
 def detect_emotion_drift(emotion_sequence: np.ndarray,
                         threshold: float = 0.5) -> Tuple[np.ndarray, Dict]:
     """
-    Detect emotion drift in a sequence of emotions.
-    
-    Args:
-        emotion_sequence: Array of emotion indices for each turn
-        threshold: Threshold for detecting significant drift
-        
-    Returns:
-        Tuple of (drift_scores, drift_stats)
-        - drift_scores: Array of drift magnitudes between consecutive turns
-        - drift_stats: Dictionary with drift statistics
+    Detects emotion drift in a sequence. Returns drift scores and some stats.
     """
     if len(emotion_sequence) < 2:
         return np.array([]), {
@@ -122,10 +104,10 @@ def detect_emotion_drift(emotion_sequence: np.ndarray,
             'total_transitions': 0
         }
     
-    # Calculate drift as absolute difference between consecutive emotions
+    # calculate drift as the difference between consecutive emotions
     drift_scores = np.abs(np.diff(emotion_sequence))
     
-    # Detect significant drifts (above threshold)
+    # find significant drifts (above threshold)
     significant_drifts = drift_scores > threshold
     
     stats = {
@@ -278,16 +260,7 @@ def evaluate_model(model: torch.nn.Module,
                   device: torch.device,
                   emotion_classes: Optional[List[str]] = None) -> Dict:
     """
-    Comprehensive evaluation of a trained model.
-    
-    Args:
-        model: Trained PyTorch model
-        dataloader: DataLoader for evaluation data
-        device: Device to run evaluation on
-        emotion_classes: Optional list of emotion class names
-        
-    Returns:
-        Dictionary with all evaluation metrics
+    Evaluates a trained model. Runs it on the dataloader and computes all the metrics.
     """
     model.eval()
     all_predictions = []
@@ -295,7 +268,7 @@ def evaluate_model(model: torch.nn.Module,
     all_sequences_pred = []
     all_sequences_true = []
     
-    # Add progress bar for evaluation
+    # add progress bar if available
     try:
         from tqdm import tqdm
         progress_bar = tqdm(dataloader, desc="Evaluating")
@@ -309,24 +282,24 @@ def evaluate_model(model: torch.nn.Module,
             labels = batch['labels'].to(device)
             padding_mask = batch['padding_mask'].to(device)
             
-            # Forward pass
+            # forward pass
             if hasattr(model.base_model, 'transformer'):
-                # Transformer model - reshape for BERT
+                # reshape for transformer model
                 batch_size, seq_len, turn_len = input_ids.shape
                 input_ids_flat = input_ids.view(batch_size * seq_len, turn_len)
                 attention_mask_flat = attention_mask.view(batch_size * seq_len, turn_len)
                 
                 logits_flat = model(input_ids=input_ids_flat, attention_mask=attention_mask_flat)
-                # Take [CLS] token for each turn
+                # use [CLS] token for each turn
                 num_classes = logits_flat.shape[-1]
                 logits = logits_flat[:, 0, :].view(batch_size, seq_len, num_classes)
             else:
                 raise NotImplementedError("LSTM evaluation requires pre-computed embeddings")
             
-            # Get predictions
+            # get predictions
             predictions = torch.argmax(logits, dim=-1)
             
-            # Collect predictions and labels (only valid positions)
+            # collect predictions and labels (only valid positions, ignore padding)
             for i in range(predictions.shape[0]):
                 valid_mask = padding_mask[i].cpu().numpy()
                 pred_seq = predictions[i][valid_mask].cpu().numpy()
@@ -337,26 +310,18 @@ def evaluate_model(model: torch.nn.Module,
                 all_sequences_pred.append(pred_seq)
                 all_sequences_true.append(true_seq)
     
-    # Convert to numpy arrays
+    # convert to numpy arrays
     all_predictions = np.array(all_predictions)
     all_labels = np.array(all_labels)
     
-    # Compute classification metrics
+    # compute all the metrics
     classification_metrics = compute_metrics(all_predictions, all_labels, emotion_classes)
-    
-    # Compute confusion matrix
     cm = compute_confusion_matrix(all_predictions, all_labels, emotion_classes)
-    
-    # Compute drift detection metrics
     drift_metrics = compute_drift_detection_metrics(all_sequences_pred, all_sequences_true)
-    
-    # Compute trajectory metrics
     trajectory_metrics = compute_trajectory_metrics(all_sequences_true, emotion_classes)
-    
-    # Compute transition matrix
     transition_matrix = compute_emotion_transition_matrix(all_sequences_true, emotion_classes)
     
-    # Combine all metrics
+    # combine everything
     results = {
         'classification': classification_metrics,
         'drift_detection': drift_metrics,

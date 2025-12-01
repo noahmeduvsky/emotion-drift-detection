@@ -1,6 +1,5 @@
 """
-Simple script to test the trained emotion drift detection model on new text inputs.
-This allows you to input dialogue text and see emotion predictions in real-time.
+Script to test the trained model on new text. You can input dialogue and see emotion predictions.
 """
 
 import torch
@@ -18,7 +17,7 @@ from src.models import create_model
 from src.preprocessing import EmotionPreprocessor
 
 def load_model(checkpoint_path: str, model_name: str = "bert-base-uncased", num_emotions: int = 7, device: str = "cuda"):
-    """Load a trained model from checkpoint."""
+    """Loads a trained model from a checkpoint."""
     print(f"Loading model from {checkpoint_path}...")
     
     model = create_model(
@@ -45,10 +44,10 @@ def load_model(checkpoint_path: str, model_name: str = "bert-base-uncased", num_
     return model
 
 def predict_emotion(model, text: str, tokenizer, device: str, emotion_classes: list):
-    """Predict emotion for a single text input."""
+    """Predicts emotion for a single text input."""
     model.eval()
     
-    # Tokenize input
+    # tokenize the input
     encoded = tokenizer(
         text,
         max_length=128,
@@ -60,11 +59,11 @@ def predict_emotion(model, text: str, tokenizer, device: str, emotion_classes: l
     input_ids = encoded['input_ids'].to(device)
     attention_mask = encoded['attention_mask'].to(device)
     
-    # Predict
+    # get prediction
     with torch.no_grad():
         logits = model(input_ids=input_ids, attention_mask=attention_mask)
         
-        # Take [CLS] token prediction (first token)
+        # use [CLS] token (first token) for classification
         cls_logits = logits[:, 0, :]
         probabilities = torch.softmax(cls_logits, dim=-1)
         predicted_idx = torch.argmax(probabilities, dim=-1).item()
@@ -75,7 +74,7 @@ def predict_emotion(model, text: str, tokenizer, device: str, emotion_classes: l
     return emotion, confidence, probabilities[0].cpu().numpy()
 
 def predict_dialogue_sequence(model, texts: list, tokenizer, device: str, emotion_classes: list):
-    """Predict emotions for a sequence of dialogue turns and detect drift."""
+    """Predicts emotions for a sequence of dialogue turns and detects drift."""
     emotions = []
     confidences = []
     
@@ -92,13 +91,13 @@ def predict_dialogue_sequence(model, texts: list, tokenizer, device: str, emotio
         print(f"  Text: {text[:80]}{'...' if len(text) > 80 else ''}")
         print(f"  Predicted Emotion: {emotion} (confidence: {confidence:.2%})")
         
-        # Show top 3 emotions
+        # show top 3 predictions
         top_indices = np.argsort(probs)[-3:][::-1]
         print(f"  Top 3 predictions:")
         for idx in top_indices:
             print(f"    - {emotion_classes[idx]}: {probs[idx]:.2%}")
     
-    # Detect drift
+    # detect drift between turns
     print("\n" + "="*60)
     print("EMOTION DRIFT ANALYSIS")
     print("="*60)

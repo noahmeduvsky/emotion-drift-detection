@@ -1,6 +1,5 @@
 """
-Data preprocessing pipeline for emotion drift detection.
-Includes text cleaning, tokenization, and sequence preparation.
+Preprocessing pipeline. Handles text cleaning, tokenization, and getting everything ready for training.
 """
 
 import pandas as pd
@@ -14,7 +13,7 @@ from sklearn.utils.class_weight import compute_class_weight
 
 class EmotionPreprocessor:
     """
-    Preprocessing pipeline for emotion-labeled dialogue data.
+    Preprocessor that handles all the data cleaning and tokenization.
     """
     
     def __init__(self, 
@@ -22,73 +21,57 @@ class EmotionPreprocessor:
                  max_length: int = 128,
                  lowercase: bool = True):
         """
-        Initialize preprocessor.
-        
-        Args:
-            model_name: Hugging Face model name (bert-base-uncased or roberta-base)
-            max_length: Maximum sequence length for tokenization
-            lowercase: Whether to lowercase text
+        Sets up the preprocessor with a tokenizer.
         """
         self.model_name = model_name
         self.max_length = max_length
         self.lowercase = lowercase
         
-        # Initialize tokenizer
+        # load the right tokenizer
         if "roberta" in model_name.lower():
             self.tokenizer = RobertaTokenizer.from_pretrained(model_name)
         else:
             self.tokenizer = BertTokenizer.from_pretrained(model_name)
         
+        # for encoding emotion labels to numbers
         self.label_encoder = LabelEncoder()
         self.emotion_mapping = {}
     
     def clean_text(self, text: str) -> str:
         """
-        Clean text by removing special characters and normalizing.
-        
-        Args:
-            text: Raw text string
-        
-        Returns:
-            Cleaned text
+        Cleans text by removing URLs, emails, and extra whitespace.
         """
         if pd.isna(text):
             return ""
         
         text = str(text)
         
-        # Remove URLs
+        # remove URLs
         text = re.sub(r'http\S+|www\S+|https\S+', '', text, flags=re.MULTILINE)
         
-        # Remove email addresses
+        # remove emails
         text = re.sub(r'\S+@\S+', '', text)
         
-        # Remove extra whitespace
+        # clean up whitespace
         text = re.sub(r'\s+', ' ', text)
         
-        # Lowercase if specified
+        # lowercase if needed
         if self.lowercase:
             text = text.lower()
         
-        # Strip leading/trailing whitespace
+        # trim whitespace
         text = text.strip()
         
         return text
     
     def preprocess_texts(self, texts: List[str]) -> Dict:
         """
-        Tokenize and encode texts using the transformer tokenizer.
-        
-        Args:
-            texts: List of text strings
-        
-        Returns:
-            Dictionary with 'input_ids', 'attention_mask', 'token_type_ids'
+        Tokenizes a list of texts. Returns input_ids and attention_mask.
         """
-        # Clean texts first
+        # clean first
         cleaned_texts = [self.clean_text(text) for text in texts]
         
-        # Tokenize
+        # tokenize
         encoded = self.tokenizer(
             cleaned_texts,
             padding=True,
@@ -101,17 +84,11 @@ class EmotionPreprocessor:
     
     def encode_emotions(self, emotions: List[str]) -> np.ndarray:
         """
-        Encode emotion labels to numerical values.
-        
-        Args:
-            emotions: List of emotion label strings
-        
-        Returns:
-            NumPy array of encoded labels
+        Converts emotion labels to numbers. Stores the mapping so we can convert back later.
         """
         encoded = self.label_encoder.fit_transform(emotions)
         
-        # Store mapping for inverse transform
+        # save the mapping
         self.emotion_mapping = {
             label: idx for idx, label in enumerate(self.label_encoder.classes_)
         }
@@ -124,29 +101,20 @@ class EmotionPreprocessor:
                          emotion_col: str = 'emotion',
                          dialogue_col: str = 'dialogue_id') -> Tuple[List[Dict], List[np.ndarray], Dict]:
         """
-        Prepare dialogue sequences for model training.
-        
-        Args:
-            df: DataFrame with dialogue data
-            text_col: Name of text column
-            emotion_col: Name of emotion column
-            dialogue_col: Name of dialogue ID column
-        
-        Returns:
-            Tuple of (encoded_texts, encoded_emotions, metadata)
+        Prepares dialogue sequences for training. Groups by dialogue_id and tokenizes everything.
         """
-        # Group by dialogue_id to create sequences
+        # group by dialogue to create sequences
         dialogues = []
         dialogue_emotions = []
         
         for dialogue_id, group in df.groupby(dialogue_col):
-            # Sort by turn_id to maintain order
+            # sort by turn_id to keep the order right
             group = group.sort_values('turn_id')
             
             texts = group[text_col].tolist()
             emotions = group[emotion_col].tolist()
             
-            # Encode texts
+            # tokenize the texts
             encoded = self.preprocess_texts(texts)
             
             dialogues.append({
@@ -157,11 +125,11 @@ class EmotionPreprocessor:
             
             dialogue_emotions.append(emotions)
         
-        # Encode all emotions
+        # encode all emotions to numbers
         all_emotions = [emotion for emotions in dialogue_emotions for emotion in emotions]
         encoded_emotions = self.encode_emotions(all_emotions)
         
-        # Reshape to match dialogue structure
+        # reshape to match dialogue structure
         emotion_idx = 0
         encoded_dialogue_emotions = []
         for emotions in dialogue_emotions:
@@ -180,13 +148,7 @@ class EmotionPreprocessor:
     
     def compute_class_weights(self, emotions: List[str]) -> np.ndarray:
         """
-        Compute class weights for handling imbalanced emotion classes.
-        
-        Args:
-            emotions: List of emotion labels
-        
-        Returns:
-            Array of class weights
+        Computes class weights for imbalanced data. Helps the model learn from rare classes.
         """
         encoded = self.label_encoder.transform(emotions)
         unique_classes = np.unique(encoded)
@@ -206,18 +168,11 @@ class EmotionPreprocessor:
 
 def normalize_emotion_labels(df: pd.DataFrame, emotion_col: str = 'emotion') -> pd.DataFrame:
     """
-    Normalize emotion labels to a consistent set.
-    
-    Args:
-        df: DataFrame with emotion column
-        emotion_col: Name of emotion column
-    
-    Returns:
-        DataFrame with normalized emotion labels
+    Normalizes emotion labels. Different datasets use different names, so I map them all to the same set.
     """
     df = df.copy()
     
-    # Mapping common emotion variations to standard labels
+    # map different emotion names to standard ones
     emotion_mapping = {
         'joy': 'joy',
         'happy': 'joy',
@@ -244,15 +199,7 @@ def balance_dataset(df: pd.DataFrame,
                    emotion_col: str = 'emotion',
                    method: str = 'oversample') -> pd.DataFrame:
     """
-    Balance emotion class distribution.
-    
-    Args:
-        df: DataFrame to balance
-        emotion_col: Name of emotion column
-        method: 'oversample' or 'undersample'
-    
-    Returns:
-        Balanced DataFrame
+    Balances the dataset by oversampling or undersampling. I usually use oversample.
     """
     from sklearn.utils import resample
     

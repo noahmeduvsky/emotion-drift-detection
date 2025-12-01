@@ -1,6 +1,6 @@
 """
-Model architectures for emotion drift detection.
-Includes LSTM and Transformer-based sequence models.
+Model architectures for the emotion drift detection project.
+I have LSTM and Transformer models, but mostly use Transformer.
 """
 
 import torch
@@ -11,7 +11,7 @@ from typing import Optional
 
 class EmotionLSTM(nn.Module):
     """
-    Bidirectional LSTM model for emotion classification in dialogue sequences.
+    LSTM model for emotion classification. I made it bidirectional to get context from both directions.
     """
     
     def __init__(self,
@@ -21,14 +21,7 @@ class EmotionLSTM(nn.Module):
                  num_emotions: int = 7,
                  dropout: float = 0.3):
         """
-        Initialize LSTM model.
-        
-        Args:
-            embedding_dim: Dimension of input embeddings (BERT output size)
-            hidden_dim: Hidden dimension of LSTM
-            num_layers: Number of LSTM layers
-            num_emotions: Number of emotion classes
-            dropout: Dropout rate
+        Sets up the LSTM model. embedding_dim is 768 because that's what BERT outputs.
         """
         super(EmotionLSTM, self).__init__()
         
@@ -36,7 +29,7 @@ class EmotionLSTM(nn.Module):
         self.hidden_dim = hidden_dim
         self.num_layers = num_layers
         
-        # Bidirectional LSTM
+        # bidirectional LSTM to get context from both directions
         self.lstm = nn.LSTM(
             input_size=embedding_dim,
             hidden_size=hidden_dim,
@@ -46,19 +39,13 @@ class EmotionLSTM(nn.Module):
             dropout=dropout if num_layers > 1 else 0
         )
         
-        # Fully connected layer
-        self.fc = nn.Linear(hidden_dim * 2, num_emotions)  # *2 for bidirectional
+        # final classification layer (times 2 because bidirectional)
+        self.fc = nn.Linear(hidden_dim * 2, num_emotions)
         self.dropout = nn.Dropout(dropout)
         
     def forward(self, embeddings: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass through LSTM.
-        
-        Args:
-            embeddings: Input embeddings [batch_size, seq_len, embedding_dim]
-        
-        Returns:
-            Emotion logits [batch_size, seq_len, num_emotions]
+        Forward pass. Takes embeddings and returns emotion predictions.
         """
         # LSTM forward pass
         lstm_out, _ = self.lstm(embeddings)
@@ -74,7 +61,7 @@ class EmotionLSTM(nn.Module):
 
 class EmotionTransformer(nn.Module):
     """
-    Transformer-based model using BERT/RoBERTa for emotion classification.
+    Transformer model using BERT or RoBERTa. This is what I actually use most of the time.
     """
     
     def __init__(self,
@@ -83,19 +70,13 @@ class EmotionTransformer(nn.Module):
                  dropout: float = 0.3,
                  freeze_base: bool = False):
         """
-        Initialize Transformer model.
-        
-        Args:
-            model_name: Hugging Face model name
-            num_emotions: Number of emotion classes
-            dropout: Dropout rate
-            freeze_base: Whether to freeze base transformer weights
+        Sets up the transformer model. Can use BERT or RoBERTa from Hugging Face.
         """
         super(EmotionTransformer, self).__init__()
         
         self.model_name = model_name
         
-        # Load base transformer model
+        # load the base model (BERT or RoBERTa)
         if "roberta" in model_name.lower():
             self.transformer = RobertaModel.from_pretrained(model_name)
             self.config = RobertaConfig.from_pretrained(model_name)
@@ -103,40 +84,33 @@ class EmotionTransformer(nn.Module):
             self.transformer = BertModel.from_pretrained(model_name)
             self.config = BertConfig.from_pretrained(model_name)
         
-        # Freeze base model if specified
+        # optionally freeze the base model (I usually don't do this)
         if freeze_base:
             for param in self.transformer.parameters():
                 param.requires_grad = False
         
-        # Classification head
+        # add a classification head on top
         hidden_size = self.config.hidden_size
         self.dropout = nn.Dropout(dropout)
         self.classifier = nn.Linear(hidden_size, num_emotions)
         
     def forward(self, input_ids: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
         """
-        Forward pass through Transformer.
-        
-        Args:
-            input_ids: Token IDs [batch_size, seq_len]
-            attention_mask: Attention mask [batch_size, seq_len]
-        
-        Returns:
-            Emotion logits [batch_size, seq_len, num_emotions]
+        Forward pass. Takes tokenized input and returns emotion logits.
         """
-        # Get transformer outputs
+        # get the transformer outputs
         outputs = self.transformer(
             input_ids=input_ids,
             attention_mask=attention_mask
         )
         
-        # Use sequence output (token-level representations)
+        # use the sequence output (all token representations)
         sequence_output = outputs.last_hidden_state
         
-        # Apply dropout
+        # apply dropout for regularization
         sequence_output = self.dropout(sequence_output)
         
-        # Classification layer
+        # classify each token position
         logits = self.classifier(sequence_output)
         
         return logits
@@ -144,8 +118,7 @@ class EmotionTransformer(nn.Module):
 
 class EmotionDriftDetector(nn.Module):
     """
-    Model that detects emotion drift by comparing consecutive emotion predictions.
-    Can wrap either LSTM or Transformer base models.
+    Wrapper that detects emotion drift. Takes a base model and adds drift detection on top.
     """
     
     def __init__(self,
@@ -153,12 +126,7 @@ class EmotionDriftDetector(nn.Module):
                  num_emotions: int = 7,
                  drift_threshold: float = 0.5):
         """
-        Initialize drift detector.
-        
-        Args:
-            base_model: Base emotion classification model (LSTM or Transformer)
-            num_emotions: Number of emotion classes
-            drift_threshold: Threshold for detecting significant emotion shifts
+        Sets up the drift detector. Wraps around the base model.
         """
         super(EmotionDriftDetector, self).__init__()
         
@@ -168,46 +136,27 @@ class EmotionDriftDetector(nn.Module):
         
     def forward(self, *args, **kwargs) -> torch.Tensor:
         """
-        Forward pass through base model.
-        
-        Args:
-            *args, **kwargs: Arguments passed to base model
-        
-        Returns:
-            Emotion logits
+        Just passes through to the base model.
         """
         return self.base_model(*args, **kwargs)
     
     def detect_drift(self, logits: torch.Tensor) -> torch.Tensor:
         """
-        Detect emotion drift between consecutive turns.
-        
-        Args:
-            logits: Emotion logits [batch_size, seq_len, num_emotions]
-        
-        Returns:
-            Drift scores [batch_size, seq_len-1] indicating magnitude of emotion change
+        Detects emotion drift by comparing consecutive predictions.
+        Returns how much the emotion changed between turns.
         """
-        # Get predicted probabilities
+        # get probabilities and predictions
         probs = torch.softmax(logits, dim=-1)
-        
-        # Get predicted emotion indices
         pred_emotions = torch.argmax(probs, dim=-1)
         
-        # Calculate drift: difference between consecutive predictions
+        # calculate how much emotions changed between consecutive turns
         drift = torch.abs(pred_emotions[:, 1:] - pred_emotions[:, :-1])
         
         return drift.float()
     
     def compute_drift_statistics(self, logits: torch.Tensor) -> dict:
         """
-        Compute statistics about emotion drift in a sequence.
-        
-        Args:
-            logits: Emotion logits [batch_size, seq_len, num_emotions]
-        
-        Returns:
-            Dictionary with drift statistics
+        Computes some stats about drift in the sequence. Useful for analysis.
         """
         drift_scores = self.detect_drift(logits)
         
@@ -226,16 +175,7 @@ def create_model(model_type: str = "transformer",
                 num_emotions: int = 7,
                 **kwargs) -> nn.Module:
     """
-    Factory function to create emotion classification models.
-    
-    Args:
-        model_type: Type of model ('lstm' or 'transformer')
-        model_name: Hugging Face model name (for transformer)
-        num_emotions: Number of emotion classes
-        **kwargs: Additional arguments for model initialization
-    
-    Returns:
-        Initialized model
+    Factory function to create models. Just pass in the type and it builds it for you.
     """
     if model_type.lower() == "lstm":
         embedding_dim = kwargs.get('embedding_dim', 768)
@@ -265,7 +205,7 @@ def create_model(model_type: str = "transformer",
     else:
         raise ValueError(f"Unknown model type: {model_type}")
     
-    # Wrap in drift detector
+    # wrap it in the drift detector
     drift_threshold = kwargs.get('drift_threshold', 0.5)
     model = EmotionDriftDetector(
         base_model=base_model,

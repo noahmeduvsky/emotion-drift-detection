@@ -1,6 +1,5 @@
 """
-Visualization utilities for emotion drift detection.
-Creates plots for emotion trajectories, confusion matrices, and analysis.
+Visualization utilities. Makes plots for trajectories, confusion matrices, etc.
 """
 
 import matplotlib.pyplot as plt
