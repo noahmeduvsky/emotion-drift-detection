@@ -61,13 +61,7 @@ Processed data will be stored with the following structure:
 pip install -r requirements.txt
 ```
 
-### 2. Verify Setup
-
-```bash
-python test_setup.py
-```
-
-### 3. Train a Model
+### 2. Train a Model
 
 ```bash
 # Train a transformer model

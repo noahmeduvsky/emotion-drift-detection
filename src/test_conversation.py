@@ -229,7 +229,13 @@ def analyze_conversation(model, messages: list, tokenizer, device: str, emotion_
 
 def main():
     parser = argparse.ArgumentParser(description="Test emotion drift detection on a natural conversation")
-    parser.add_argument('--checkpoint', type=str, default='models/bert_real_weighted/best_model.pt',
+    # Handle path resolution for checkpoint
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    default_checkpoint = os.path.join(script_dir, 'models', 'bert_real_weighted', 'best_model.pt')
+    if not os.path.exists(default_checkpoint):
+        default_checkpoint = 'models/bert_real_weighted/best_model.pt'
+    
+    parser.add_argument('--checkpoint', type=str, default=default_checkpoint,
                        help='Path to model checkpoint')
     parser.add_argument('--model-name', type=str, default='bert-base-uncased',
                        help='Model name used for training')
@@ -241,6 +247,8 @@ def main():
     parser.add_argument('--text', type=str, nargs='+', help='Conversation messages as command-line arguments')
     parser.add_argument('--input-format', type=str, choices=['auto', 'txt', 'json'], default='auto',
                        help='Input file format (auto-detect if not specified)')
+    parser.add_argument('--interactive', action='store_true',
+                       help='Run in interactive mode for live conversation input')
     
     args = parser.parse_args()
     
@@ -283,6 +291,94 @@ def main():
         except Exception as e:
             print(f"Error reading file: {e}")
             return
+    
+    elif args.interactive:
+        # Interactive mode for live conversation
+        print("\n" + "="*70)
+        print("INTERACTIVE CONVERSATION MODE")
+        print("="*70)
+        print("Commands:")
+        print("  - Type a message to analyze")
+        print("  - Type 'analyze' to see full conversation analysis")
+        print("  - Type 'clear' to start a new conversation")
+        print("  - Type 'quit' or 'exit' to end")
+        print("="*70 + "\n")
+        
+        conversation_messages = []
+        
+        while True:
+            try:
+                user_input = input("\nEnter message (or command): ").strip()
+                
+                if not user_input:
+                    continue
+                
+                if user_input.lower() in ['quit', 'exit', 'q']:
+                    if conversation_messages:
+                        print("\n" + "="*70)
+                        print("FINAL CONVERSATION ANALYSIS")
+                        print("="*70)
+                        analyze_conversation(
+                            model, conversation_messages, tokenizer, args.device, emotion_classes
+                        )
+                    print("\nGoodbye!")
+                    break
+                
+                elif user_input.lower() == 'clear':
+                    if conversation_messages:
+                        print(f"\n[Cleared {len(conversation_messages)} previous messages]")
+                    conversation_messages = []
+                    continue
+                
+                elif user_input.lower() == 'analyze':
+                    if conversation_messages:
+                        analyze_conversation(
+                            model, conversation_messages, tokenizer, args.device, emotion_classes
+                        )
+                    else:
+                        print("\n[No messages in conversation yet]")
+                    continue
+                
+                else:
+                    # Add message to conversation
+                    message = {'speaker': 'User', 'text': user_input}
+                    conversation_messages.append(message)
+                    
+                    # Predict emotion for this turn
+                    emotion, confidence, probs = predict_emotion(
+                        model, user_input, tokenizer, args.device, emotion_classes
+                    )
+                    
+                    print(f"\n[{len(conversation_messages)}] {user_input[:60]}{'...' if len(user_input) > 60 else ''}")
+                    print(f"     Emotion: {emotion.upper()} ({confidence:.1%} confidence)")
+                    
+                    # Show drift if we have previous messages
+                    if len(conversation_messages) > 1:
+                        prev_emotion, _, _ = predict_emotion(
+                            model, 
+                            conversation_messages[-2]['text'], 
+                            tokenizer, 
+                            args.device, 
+                            emotion_classes
+                        )
+                        if prev_emotion != emotion:
+                            emotion_to_idx = {e: i for i, e in enumerate(emotion_classes)}
+                            prev_idx = emotion_to_idx[prev_emotion]
+                            curr_idx = emotion_to_idx[emotion]
+                            drift_magnitude = abs(curr_idx - prev_idx)
+                            
+                            print(f"     [DRIFT DETECTED: {prev_emotion.upper()} → {emotion.upper()} (magnitude: {drift_magnitude})]")
+                            if drift_magnitude >= 3:
+                                print(f"     [WARNING] SIGNIFICANT EMOTION SHIFT!")
+            
+            except KeyboardInterrupt:
+                print("\n\nInterrupted. Goodbye!")
+                break
+            except Exception as e:
+                print(f"\n[Error: {e}]")
+                continue
+        
+        return
     
     elif args.text:
         # From command-line arguments

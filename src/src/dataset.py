@@ -1,5 +1,5 @@
 """
-PyTorch Dataset and DataLoader stuff. Handles batching dialogue sequences for training.
+PyTorch Dataset and DataLoader utilities. Handles batching dialogue sequences for training.
 """
 
 import torch
@@ -115,7 +115,7 @@ def create_dataloader(dialogues: List[Dict],
                       max_seq_length: Optional[int] = None,
                       num_workers: int = 0) -> DataLoader:
     """
-    Creates a DataLoader for training. Handles all the batching stuff.
+    Creates a DataLoader for training with proper batching and sequence handling.
     """
     dataset = DialogueDataset(dialogues, emotions, max_seq_length=max_seq_length)
     

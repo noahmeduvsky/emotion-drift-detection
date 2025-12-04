@@ -1,6 +1,5 @@
 """
 Main script for training and evaluating the emotion drift model.
-I use this to run everything from one place.
 """
 
 import argparse
@@ -30,11 +29,11 @@ def load_and_preprocess_data(dataset_name: str = "dailydialog",
                            max_length: int = 128,
                            use_saved: bool = True):
     """
-    Loads and preprocesses the dataset. 
-    I made it check for saved data first to save time.
+    Loads and preprocesses the dataset.
+    Checks for saved preprocessed data first to avoid redundant processing.
     """
-    # check for saved data first since preprocessing takes forever
-    # look in a few different places in case the paths are weird
+    # Check for saved data first since preprocessing is time-consuming
+    # Look in multiple possible locations for flexibility
     possible_data_files = [
         "data/processed_data_real.csv",
         "src/data/processed_data_real.csv",
@@ -128,7 +127,7 @@ def load_and_preprocess_data(dataset_name: str = "dailydialog",
 
 def train_pipeline(args):
     """
-    Runs the training pipeline. This is where the magic happens.
+    Runs the training pipeline.
     """
     print("="*60)
     print("TRAINING PIPELINE")
@@ -266,7 +265,7 @@ def train_pipeline(args):
 
 def evaluate_pipeline(args):
     """
-    Evaluates a trained model. Just loads the checkpoint and runs it on test data.
+    Evaluates a trained model by loading the checkpoint and running inference on test data.
     """
     print("="*60)
     print("EVALUATION PIPELINE")

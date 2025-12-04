@@ -1,5 +1,5 @@
 """
-Data loading utilities. I support a few different datasets but mostly use DailyDialog.
+Data loading utilities. Supports multiple datasets, primarily using DailyDialog.
 """
 
 import pandas as pd

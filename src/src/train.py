@@ -1,6 +1,6 @@
 """
 Training script for the emotion drift model.
-I support both LSTM and Transformer models, but mostly use Transformer (BERT).
+Supports both LSTM and Transformer model architectures.
 """
 
 import torch
@@ -42,7 +42,6 @@ except ImportError:
 class Trainer:
     """
     Trainer class that handles all the training logic.
-    I put everything here so it's easier to manage.
     """
     
     def __init__(self,
@@ -57,7 +56,7 @@ class Trainer:
                  focal_gamma: float = 2.0,
                  save_dir: str = "models/checkpoints"):
         """
-        Sets up the trainer with model, data loaders, and all the training stuff.
+        Initializes the trainer with model, data loaders, and training configuration.
         """
         self.model = model.to(device)
         self.train_loader = train_loader
@@ -150,8 +149,7 @@ class Trainer:
                 # Reshape back to [batch, seq, num_classes]
                 logits = logits.view(batch_size, seq_len, num_classes)
             else:
-                # LSTM would need embeddings first, but I never got around to implementing this
-                # maybe later if I have time
+                # LSTM training requires pre-computed embeddings
                 raise NotImplementedError("LSTM training requires pre-computed embeddings")
             
             # Reshape for loss computation

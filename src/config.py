@@ -1,6 +1,5 @@
 """
 Configuration file with all the default hyperparameters and settings.
-I keep everything here so it's easy to change.
 """
 
 # Model configuration

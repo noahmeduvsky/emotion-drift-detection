@@ -13,7 +13,7 @@ from sklearn.utils.class_weight import compute_class_weight
 class FocalLoss(nn.Module):
     """
     Focal Loss for imbalanced datasets. Focuses on hard examples and down-weights easy ones.
-    I read about this in a paper and thought it might help with my imbalanced emotion classes.
+    Adapted from Lin et al. (2017) for emotion classification tasks.
     """
     
     def __init__(self, alpha: Optional[torch.Tensor] = None, 

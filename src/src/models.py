@@ -1,6 +1,6 @@
 """
 Model architectures for the emotion drift detection project.
-I have LSTM and Transformer models, but mostly use Transformer.
+Includes both LSTM and Transformer models, with Transformer as the primary architecture.
 """
 
 import torch
@@ -11,7 +11,7 @@ from typing import Optional
 
 class EmotionLSTM(nn.Module):
     """
-    LSTM model for emotion classification. I made it bidirectional to get context from both directions.
+    LSTM model for emotion classification. Uses bidirectional architecture to capture context from both directions.
     """
     
     def __init__(self,
@@ -61,7 +61,7 @@ class EmotionLSTM(nn.Module):
 
 class EmotionTransformer(nn.Module):
     """
-    Transformer model using BERT or RoBERTa. This is what I actually use most of the time.
+    Transformer model using BERT or RoBERTa. Primary architecture used for emotion classification.
     """
     
     def __init__(self,
@@ -136,7 +136,7 @@ class EmotionDriftDetector(nn.Module):
         
     def forward(self, *args, **kwargs) -> torch.Tensor:
         """
-        Just passes through to the base model.
+        Forward pass delegates to the base model.
         """
         return self.base_model(*args, **kwargs)
     
@@ -156,7 +156,8 @@ class EmotionDriftDetector(nn.Module):
     
     def compute_drift_statistics(self, logits: torch.Tensor) -> dict:
         """
-        Computes some stats about drift in the sequence. Useful for analysis.
+        Computes drift statistics for the sequence, including mean drift, max drift,
+        and drift transition counts. Useful for analysis.
         """
         drift_scores = self.detect_drift(logits)
         
@@ -175,7 +176,8 @@ def create_model(model_type: str = "transformer",
                 num_emotions: int = 7,
                 **kwargs) -> nn.Module:
     """
-    Factory function to create models. Just pass in the type and it builds it for you.
+    Factory function to create emotion detection models.
+    Returns an EmotionDriftDetector wrapping the specified base model type.
     """
     if model_type.lower() == "lstm":
         embedding_dim = kwargs.get('embedding_dim', 768)

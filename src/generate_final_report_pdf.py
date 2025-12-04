@@ -23,7 +23,9 @@ def load_metrics(model_path):
 def create_pdf_report():
     """Create the final PDF report with all results."""
     
-    pdf_path = "Final_Project_Report.pdf"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir) if os.path.basename(script_dir) == 'src' else script_dir
+    pdf_path = os.path.join(project_root, "src", "Final_Project_Report.pdf")
     doc = SimpleDocTemplate(pdf_path, pagesize=letter,
                             rightMargin=72, leftMargin=72,
                             topMargin=72, bottomMargin=18)
@@ -65,11 +67,15 @@ def create_pdf_report():
     normal_style.alignment = TA_LEFT
     normal_style.fontSize = 10
     
-    # Load actual metrics data
-    models_dir = "models"
+    # Load actual metrics data - handle both src/ and project root execution
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir) if os.path.basename(script_dir) == 'src' else script_dir
+    models_dir = os.path.join(project_root, "src", "models") if os.path.exists(os.path.join(project_root, "src", "models")) else os.path.join(project_root, "models")
+    
     bert_baseline = load_metrics(os.path.join(models_dir, "bert_baseline"))
     bert_real = load_metrics(os.path.join(models_dir, "bert_real"))
     bert_weighted = load_metrics(os.path.join(models_dir, "bert_real_weighted"))
+    roberta_real = load_metrics(os.path.join(models_dir, "roberta_real"))
     
     # Title
     story.append(Paragraph("Emotion Drift Detection in Customer Support AI", title_style))
@@ -318,28 +324,89 @@ def create_pdf_report():
     <b>Experimental Methodology:</b> The dependent variables are emotion classification accuracy, 
     drift detection accuracy, and per-class performance metrics. Independent variables include model 
     architecture (BERT vs. RoBERTa), loss function type (standard cross-entropy vs. weighted vs. 
-    focal), and class balancing techniques. I use the DailyDialog dataset with 
+    focal), and class balancing techniques. The DailyDialog dataset is used with 
     11,118 dialogues split 70/15/15, which is realistic as it represents natural human conversations 
     with diverse emotion patterns.<br/><br/>
     
-    <b>Performance Data:</b> I collect classification metrics (accuracy, F1, precision, recall), 
-    confusion matrices, drift detection metrics, emotion transition matrices, and training history 
+    <b>Performance Data:</b> Classification metrics are collected (accuracy, F1, precision, recall), 
+    including confusion matrices, drift detection metrics, emotion transition matrices, and training history 
     (loss curves, validation metrics). Results are presented through tables, confusion matrix 
     heatmaps, transition probability heatmaps, and training curve plots.<br/><br/>
     
-    <b>Comparisons:</b> I compare my class-balanced models (weighted loss and focal loss) against 
-    baseline models trained without class balancing. Additionally, I compare BERT-based and RoBERTa-based 
-    architectures to identify the most effective approach for emotion drift detection.<br/><br/>
+    <b>Comparisons:</b> Class-balanced models (weighted loss and focal loss) are compared against 
+    baseline models trained without class balancing. Additionally, BERT-based and RoBERTa-based 
+    architectures are compared to identify the most effective approach for emotion drift detection.<br/><br/>
     
-    <b>ML Libraries and Frameworks:</b> I use PyTorch for model implementation and training, Hugging Face 
+    <b>ML Libraries and Frameworks:</b> PyTorch is used for model implementation and training, Hugging Face 
     Transformers for pre-trained BERT/RoBERTa models, scikit-learn for metrics and class weight computation, 
     pandas for data manipulation, and matplotlib/seaborn for visualization.
     """
     story.append(Paragraph(methodology_text.strip(), normal_style))
     story.append(Spacer(1, 0.3*inch))
     
-    # 5.2 Evaluation Metrics
-    story.append(Paragraph("<b>5.2 Evaluation Metrics</b>", subheading_style))
+    # 5.2 Experimental Setup
+    story.append(Paragraph("<b>5.2 Experimental Setup</b>", subheading_style))
+    
+    setup_text = """
+    <b>Machine Learning Libraries and Frameworks:</b> The project utilizes the following tools and 
+    libraries: PyTorch (v2.0+) for deep learning model implementation and training, Hugging Face 
+    Transformers library for pre-trained BERT and RoBERTa models and tokenizers, scikit-learn for 
+    metrics computation (accuracy, F1, precision, recall) and class weight computation, pandas for 
+    data manipulation and preprocessing, NumPy for numerical operations, matplotlib and seaborn for 
+    visualization and plotting, and reportlab for PDF report generation.<br/><br/>
+    
+    <b>Hardware:</b> Models were trained using GPU acceleration when available, with batch sizes 
+    adjusted based on GPU memory constraints (typically 2-8 samples per batch).<br/><br/>
+    """
+    story.append(Paragraph(setup_text.strip(), normal_style))
+    story.append(Spacer(1, 0.2*inch))
+    
+    # Hyperparameters table
+    story.append(Paragraph("<b>Table 2: Hyperparameters Configuration</b>", subheading_style))
+    
+    hyperparams_data = [
+        ['Category', 'Parameter', 'Value', 'Description'],
+        ['Model Architecture', 'Model Type', 'Transformer (BERT/RoBERTa)', 'Pre-trained transformer architecture'],
+        ['Model Architecture', 'Base Model', 'bert-base-uncased / roberta-base', 'Hugging Face model identifier'],
+        ['Model Architecture', 'Num Emotions', '7', 'Output classes: anger, disgust, fear, joy, neutral, sadness, surprise'],
+        ['Model Architecture', 'Dropout Rate', '0.3', 'Dropout probability for regularization'],
+        ['Model Architecture', 'Max Sequence Length', '128 tokens', 'Maximum tokens per dialogue turn'],
+        ['Training', 'Batch Size', '8 (adjusted 2-8)', 'Samples per batch (adjusted for GPU memory)'],
+        ['Training', 'Learning Rate', '2e-5', 'AdamW optimizer learning rate'],
+        ['Training', 'Weight Decay', '0.01', 'L2 regularization coefficient'],
+        ['Training', 'Num Epochs', '10', 'Maximum training epochs'],
+        ['Training', 'Early Stopping Patience', '10', 'Epochs to wait before stopping'],
+        ['Training', 'Max Gradient Norm', '1.0', 'Gradient clipping threshold'],
+        ['Training', 'Optimizer', 'AdamW', 'Optimization algorithm'],
+        ['Training', 'Learning Rate Scheduler', 'ReduceLROnPlateau', 'Adaptive LR reduction'],
+        ['Loss Function', 'Baseline', 'Cross-Entropy', 'Standard multi-class cross-entropy'],
+        ['Loss Function', 'Weighted', 'Weighted Cross-Entropy', 'Inverse frequency class weights'],
+        ['Loss Function', 'Focal Loss Gamma', '2.0', 'Focusing parameter for hard examples'],
+        ['Data', 'Train Split', '70%', 'Training set proportion'],
+        ['Data', 'Validation Split', '15%', 'Validation set proportion'],
+        ['Data', 'Test Split', '15%', 'Test set proportion'],
+        ['Data', 'Random Seed', '42', 'Reproducibility seed'],
+    ]
+    
+    hyperparams_table = Table(hyperparams_data, colWidths=[1.3*inch, 1.5*inch, 1.2*inch, 2*inch])
+    hyperparams_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('FONTSIZE', (0, 1), (-1, -1), 7),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+    ]))
+    story.append(hyperparams_table)
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Evaluation Metrics
+    story.append(Paragraph("<b>5.2.1 Evaluation Metrics</b>", subheading_style))
     
     metrics_text = """
     <b>Classification Metrics:</b> Macro F1 score (primary metric) to assess balanced performance 
@@ -366,7 +433,7 @@ def create_pdf_report():
     
     # Overall comparison table
     if bert_real and bert_weighted:
-        story.append(Paragraph("<b>Table 2: Overall Model Performance Comparison</b>", subheading_style))
+        story.append(Paragraph("<b>Table 3: Overall Model Performance Comparison</b>", subheading_style))
         
         comparison_data = [
             ['Model', 'Accuracy', 'Macro F1', 'Weighted F1', 'Drift F1', 'Drift Recall'],
@@ -430,7 +497,7 @@ def create_pdf_report():
     
     # Per-class F1 scores table
     if bert_real and bert_weighted:
-        story.append(Paragraph("<b>Table 3: Per-Class F1 Scores</b>", subheading_style))
+        story.append(Paragraph("<b>Table 4: Per-Class F1 Scores</b>", subheading_style))
         
         emotion_classes = ['Anger', 'Disgust', 'Fear', 'Joy', 'Neutral', 'Sadness', 'Surprise']
         baseline_f1 = bert_real['classification']['per_class_f1']
@@ -467,7 +534,47 @@ def create_pdf_report():
             ('GRID', (0, 0), (-1, -1), 1, colors.black),
             ('FONTSIZE', (0, 1), (-1, -1), 7),
         ]))
-        story.append(per_class_table)
+        story.append(        per_class_table)
+        story.append(Spacer(1, 0.3*inch))
+    
+    # Drift Detection Metrics Table
+    if bert_real and bert_weighted:
+        story.append(Paragraph("<b>Table 5: Drift Detection Performance</b>", subheading_style))
+        
+        drift_data = [
+            ['Metric', 'BERT Baseline', 'BERT Weighted', 'Improvement'],
+            ['Drift Precision', 
+             f"{bert_real['drift_detection']['drift_precision']:.4f}",
+             f"{bert_weighted['drift_detection']['drift_precision']:.4f}",
+             f"{((bert_weighted['drift_detection']['drift_precision'] - bert_real['drift_detection']['drift_precision']) / bert_real['drift_detection']['drift_precision'] * 100):.1f}%"],
+            ['Drift Recall', 
+             f"{bert_real['drift_detection']['drift_recall']:.4f}",
+             f"{bert_weighted['drift_detection']['drift_recall']:.4f}",
+             f"+{((bert_weighted['drift_detection']['drift_recall'] - bert_real['drift_detection']['drift_recall']) / bert_real['drift_detection']['drift_recall'] * 100):.1f}%"],
+            ['Drift F1 Score', 
+             f"{bert_real['drift_detection']['drift_f1']:.4f}",
+             f"{bert_weighted['drift_detection']['drift_f1']:.4f}",
+             f"+{((bert_weighted['drift_detection']['drift_f1'] - bert_real['drift_detection']['drift_f1']) / bert_real['drift_detection']['drift_f1'] * 100):.1f}%"],
+            ['Drift Accuracy', 
+             f"{bert_real['drift_detection']['drift_accuracy']:.4f}",
+             f"{bert_weighted['drift_detection']['drift_accuracy']:.4f}",
+             f"{((bert_weighted['drift_detection']['drift_accuracy'] - bert_real['drift_detection']['drift_accuracy']) / bert_real['drift_detection']['drift_accuracy'] * 100):.1f}%"],
+        ]
+        
+        drift_table = Table(drift_data, colWidths=[1.2*inch, 1.3*inch, 1.3*inch, 1.2*inch])
+        drift_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 7),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        story.append(drift_table)
         story.append(Spacer(1, 0.3*inch))
     
     # Add image references with attempt to embed if exists
